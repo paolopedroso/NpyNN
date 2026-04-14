@@ -5,7 +5,7 @@ We talk about the `activation.py` here.
 ## ReLU Activation
 
 $$
-\text{ReLU} = max(0, x)
+\text{ReLU} = \max(0, x)
 $$
 
 ### Forward Pass `forward(self, inputs, training)`:
@@ -33,18 +33,22 @@ def backward(self, dvalues):
 Given:
 
 $$
-\text{ReLU} = max(0, x)
+\text{ReLU} = \max(0, x)
 $$
 
 The full chain rule goes:
-$$
-\underbrace{\frac{\partial L}{\partial x}}_{\text L w.r.t. x} = \underbrace{\frac{\partial L}{\partial r}}_{\text{L w.r.t. relu}} \cdot \underbrace{\frac{\partial r}{\partial x}}_{\text{relu w.r.t. z}}
-$$
-
-We need to know how much of $x$ input affects $L$, thus we need to solve for: $\frac{\partial L}{\partial x}$. Since $\frac{\partial L}{\partial r}$ is given from upstream from next layer, we multply $\frac{\partial r}{\partial x}$, or $r$ relu w.r.t. $x$. Since postive values at $0$ returns a $x$ in the `forward` method. The derivative at positive values, is just 1. Given here:
 
 $$
-\frac{\partial r}{\partial x} = \frac{\partial}{\partial x}(\max(0,x)) = \begin{cases} 1 & \text{if } x > 0 \\ 0 & \text{if } x \leq 0 \end{cases}$$
+\frac{\partial L}{\partial x} = \frac{\partial L}{\partial r} \cdot \frac{\partial r}{\partial x}
+$$
+
+Where $\frac{\partial L}{\partial x}$ is $L$ w.r.t. $x$, $\frac{\partial L}{\partial r}$ is $L$ w.r.t. ReLU, and $\frac{\partial r}{\partial x}$ is ReLU w.r.t. $x$.
+
+We need to know how much of $x$ input affects $L$, thus we need to solve for $\frac{\partial L}{\partial x}$. Since $\frac{\partial L}{\partial r}$ is given from upstream from next layer, we multiply $\frac{\partial r}{\partial x}$, or $r$ relu w.r.t. $x$. Since positive values at $0$ returns $x$ in the `forward` method, the derivative at positive values is just 1. Given here:
+
+$$
+\frac{\partial r}{\partial x} = \frac{\partial}{\partial x}(\max(0,x)) = \begin{cases} 1 & \text{if } x > 0 \\\\ 0 & \text{if } x \leq 0 \end{cases}
+$$
 
 Finalizing our $\frac{\partial L}{\partial x}$ gives us:
 
@@ -64,17 +68,18 @@ dinputs[inputs <= 0] = 0
 $$
 \text{Sigmoid} = \sigma(z) = \frac{1}{1+e^{-z}}
 $$
-- Where $z$ is the input value.
+
+Where $z$ is the input value.
 
 ### Forward Pass `forward(self, inputs)`:
 - Input: `inputs`
 - Output: `None`
 ```python
 def forward(self, inputs):
-    self.output = 1 / (1 + -np.exp(inputs))
+    self.output = 1 / (1 + np.exp(-inputs))
 ```
 
-This code snippet directly translate to the sigmoid function.
+This code snippet directly translates to the sigmoid function.
 
 ### Backward Pass `backward(self, dvalues)`:
 - Input: `dvalues`
@@ -86,20 +91,24 @@ def backward(self, dvalues):
 
 ### Deriving Sigmoid:
 
-Given: 
+Given:
+
 $$
 \sigma(z) = \frac{1}{1+e^{-z}}
 $$
 
-The full chain of the $L$ w.r.t. $z$ inputs is represented as:
+The full chain of $L$ w.r.t. $z$ inputs is represented as:
 
 $$
-\underbrace{\frac{\partial L}{\partial z}}_{\text L w.r.t. x} = \underbrace{\frac{\partial L}{\partial \sigma}}_{\text{L w.r.t. sigmoid}} \cdot \underbrace{\frac{\partial \sigma}{\partial z}}_{\text{relu w.r.t. z}}
+\frac{\partial L}{\partial z} = \frac{\partial L}{\partial \sigma} \cdot \frac{\partial \sigma}{\partial z}
 $$
 
-It's given this way because we want to know how much $z$ (inputs) affects $L$ (loss), thus giving us the partial derivative, $\frac{\partial L}{\partial z}$, The full chain is $\frac{\partial L}{\partial \sigma}$ multiplied by $\frac{\partial \sigma}{\partial z}$ because this will tell us how much $z$ affects $L$. $\frac{\partial L}{\partial \sigma}$ is added here because this is the gradient from upstream. Meaning that during backpropagation, the layer next to `Sigmoid` at upstream, the output of `Sigmoid` already calcualtes the derivative value, $\frac{\partial L}{\partial \sigma}$, thus this is `dvalues` in this sense at backpropagation.
+Where $\frac{\partial L}{\partial z}$ is $L$ w.r.t. $z$, $\frac{\partial L}{\partial \sigma}$ is $L$ w.r.t. sigmoid, and $\frac{\partial \sigma}{\partial z}$ is sigmoid w.r.t. $z$.
 
-Given: 
+It's given this way because we want to know how much $z$ (inputs) affects $L$ (loss), thus giving us the partial derivative, $\frac{\partial L}{\partial z}$. The full chain is $\frac{\partial L}{\partial \sigma}$ multiplied by $\frac{\partial \sigma}{\partial z}$ because this will tell us how much $z$ affects $L$. $\frac{\partial L}{\partial \sigma}$ is added here because this is the gradient from upstream. Meaning that during backpropagation, the layer next to `Sigmoid` at upstream, the output of `Sigmoid` already calculates the derivative value, $\frac{\partial L}{\partial \sigma}$, thus this is `dvalues` in this sense at backpropagation.
+
+Given:
+
 $$
 \sigma(z) = \frac{1}{1+e^{-z}}
 $$
@@ -138,7 +147,7 @@ $$
 \frac{\partial \sigma}{\partial z} = \sigma(z) \cdot (1 - \sigma(z))
 $$
 
-Now plugging $\frac{\partial \sigma}{\partial z}$ back to here: 
+Now plugging $\frac{\partial \sigma}{\partial z}$ back to here:
 
 $$
 \frac{\partial L}{\partial z} = \frac{\partial L}{\partial \sigma} \cdot \frac{\partial \sigma}{\partial z}
@@ -147,16 +156,18 @@ $$
 Gives us:
 
 $$
-\underbrace{\frac{\partial L}{\partial z}}_{\text{dinputs}} = \underbrace{\frac{\partial L}{\partial \sigma}}_{\text{dvalues}} \cdot \sigma(z) \cdot (1 - \sigma(z))
+\frac{\partial L}{\partial z} = \frac{\partial L}{\partial \sigma} \cdot \sigma(z) \cdot (1 - \sigma(z))
 $$
+
+Where $\frac{\partial L}{\partial z}$ is `dinputs` and $\frac{\partial L}{\partial \sigma}$ is `dvalues`.
 
 Representing this as code:
 ```python
 # forward pass ...
-self.ouput = 1 / (1 + -np.exp(inputs))
+self.output = 1 / (1 + np.exp(-inputs))
 
 # backward pass ...
-dinputs = dvalues * self.output (1 - self.output)
+dinputs = dvalues * self.output * (1 - self.output)
 ```
 
 ## Softmax Activation
@@ -164,10 +175,10 @@ dinputs = dvalues * self.output (1 - self.output)
 The softmax formula gives us:
 
 $$
-\text{Softmax(z)}_i = \sigma(z)_i = \frac{e^i}{\sum_{j=1}^{K}e^j}
+\text{Softmax}(z)_i = \sigma(z)_i = \frac{e^{z_i}}{\sum_{j=1}^{K}e^{z_j}}
 $$
 
-### Foward Pass `forward(self, inputs)`:
+### Forward Pass `forward(self, inputs)`:
 - Input: `inputs`
 - Output: `None`
 ```python
@@ -216,15 +227,21 @@ def backward(self, dvalues: np.ndarray):
 
 Unlike ReLU or sigmoid which apply element-wise, softmax's backward pass is more complex because each output $\sigma(z_i)$ depends on **all** inputs $z_j$ through the denominator $\sum_{j} e^{z_j}$. This means we need a **Jacobian matrix**, a matrix of all partial derivatives of each output w.r.t. each input:
 
-$$J = \begin{pmatrix} \frac{\partial \sigma_1}{\partial z_1} & \frac{\partial \sigma_1}{\partial z_2} & \cdots & \frac{\partial \sigma_1}{\partial z_n} \\ \frac{\partial \sigma_2}{\partial z_1} & \frac{\partial \sigma_2}{\partial z_2} & \cdots & \frac{\partial \sigma_2}{\partial z_n} \\ \vdots & \vdots & \ddots & \vdots \\ \frac{\partial \sigma_n}{\partial z_1} & \frac{\partial \sigma_n}{\partial z_2} & \cdots & \frac{\partial \sigma_n}{\partial z_n} \end{pmatrix}$$
+$$
+J = \begin{pmatrix} \frac{\partial \sigma_1}{\partial z_1} & \frac{\partial \sigma_1}{\partial z_2} & \cdots & \frac{\partial \sigma_1}{\partial z_n} \\\\ \frac{\partial \sigma_2}{\partial z_1} & \frac{\partial \sigma_2}{\partial z_2} & \cdots & \frac{\partial \sigma_2}{\partial z_n} \\\\ \vdots & \vdots & \ddots & \vdots \\\\ \frac{\partial \sigma_n}{\partial z_1} & \frac{\partial \sigma_n}{\partial z_2} & \cdots & \frac{\partial \sigma_n}{\partial z_n} \end{pmatrix}
+$$
 
 The derivative has two cases depending on whether $i = j$ or $i \neq j$:
 
-$$\frac{\partial \sigma_i}{\partial z_j} = \begin{cases} \sigma_i(1 - \sigma_i) & \text{if } i = j \\ -\sigma_i \sigma_j & \text{if } i \neq j \end{cases}$$
+$$
+\frac{\partial \sigma_i}{\partial z_j} = \begin{cases} \sigma_i(1 - \sigma_i) & \text{if } i = j \\\\ -\sigma_i \sigma_j & \text{if } i \neq j \end{cases}
+$$
 
 Which can be written compactly as:
 
-$$\frac{\partial \sigma_i}{\partial z_j} = \sigma_i(\delta_{ij} - \sigma_j)$$
+$$
+\frac{\partial \sigma_i}{\partial z_j} = \sigma_i(\delta_{ij} - \sigma_j)
+$$
 
 Where $\delta_{ij}$ is 1 when $i = j$ and 0 otherwise. In code this becomes:
 
@@ -234,10 +251,14 @@ Where $\delta_{ij}$ is 1 when $i = j$ and 0 otherwise. In code this becomes:
 
 The full chain rule for the backward pass is:
 
-$$\frac{\partial L}{\partial z} = \frac{\partial L}{\partial \sigma} \cdot \frac{\partial \sigma}{\partial z}$$
+$$
+\frac{\partial L}{\partial z} = \frac{\partial L}{\partial \sigma} \cdot \frac{\partial \sigma}{\partial z}
+$$
 
 Where $\frac{\partial \sigma}{\partial z}$ is the Jacobian $J$, so:
 
-$$\frac{\partial L}{\partial z_i} = \sum_{j} \frac{\partial L}{\partial \sigma_j} \cdot \frac{\partial \sigma_j}{\partial z_i} = \sum_{j} \frac{\partial L}{\partial \sigma_j} \cdot \sigma_j(\delta_{ij} - \sigma_i)$$
+$$
+\frac{\partial L}{\partial z_i} = \sum_{j} \frac{\partial L}{\partial \sigma_j} \cdot \frac{\partial \sigma_j}{\partial z_i} = \sum_{j} \frac{\partial L}{\partial \sigma_j} \cdot \sigma_j(\delta_{ij} - \sigma_i)
+$$
 
 The $\sum_j$ appears because changing $z_i$ affects **every** output $\sigma_j$, so all those paths must be summed, unlike sigmoid or ReLU where $z_i$ only affects $\sigma_i$. Then `np.dot(jacobian_matrix, single_dvalues)` computes exactly this sum per sample, multiplying the Jacobian by the upstream gradient `dvalues` to get $\frac{\partial L}{\partial z}$.
