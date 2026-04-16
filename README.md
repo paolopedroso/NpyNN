@@ -37,17 +37,58 @@ model.finalize()
 model.train(X, y, epochs=5, batch_size=128, validation_data=(X_test, y_test))
 ```
 
+## Using GNNs
+
+Graph Neural Networks operate on graph-structured data (nodes + edges) rather than flat feature vectors. Use `GraphModel` and pass your adjacency matrix via `set_graph()`:
+
+```python
+from numpynn import *
+
+model = GraphModel(
+  GCNLayer(num_features, 16),
+  ReLU(),
+  GCNLayer(16, num_classes),
+  Softmax() 
+)
+
+model.set(
+    loss=CategoricalCrossEntropy(),
+    optimizer=Adam(learning_rate=0.01),
+    accuracy=Accuracy_Categorical()
+)
+
+# set graph with adjacency matrix
+model.set_graph(adj_matrix=A)
+
+model.finalize()
+model.train(X, y, epochs=200)
+```
+
 ## Features
+
+<table>
+<tr><th>Core</th><th>Extensions</th></tr>
+<tr><td>
 
 | Category | Implementations |
 |---|---|
 | Layers | Dense, Dropout |
 | Activations | ReLU, Sigmoid, Softmax, Linear |
-| Loss | Categorical Cross Entropy, Binary Cross Entropy, Mean Squared Error |
+| Loss | Categorical Cross Entropy, Binary Cross Entropy, MSE |
 | Optimizers | SGD, Adam, RMSProp, Adagrad |
 | Regularization | L1, L2 |
 | Utilities | Model saving, loading, batch training, validation |
 
+</td><td>
+
+| Category | Implementations |
+|---|---|
+| Graph Layers | GCNLayer, MessagePassing |
+| Graph Models | GraphModel |
+| Activations | LeakyReLU, Tanh |
+
+</td></tr>
+</table>
 
 ## Fashion MNIST Example
 
@@ -115,6 +156,33 @@ validation, acc: 0.856, loss: 1.605
   <img src="plots/torch_fashion_mnist_confusion_matrix.png" width="49%" />
 </p>
 
+## Synthetic Dataset Example (with `GCNLayer`)
+Stochastic block model with 7 communities and 10K nodes.
+
+Run:
+```python
+python3 numpynn_gcn_synth.py
+```
+
+## Results
+
+```
+Training time: 4.8s
+
+Results:
+  Train accuracy: 0.990
+  Test accuracy:  0.986
+```
+
+### Training Loss, Training Accuracy, t-SNE, and 2-Hop Subgraph from Node 7270
+---
+- **Node 7270** is random from set seed. Just to show the local neighborhood structure the GCN actually aggregates over during message passing.
+
+![GCN_Results](plots/gcn_results.png)
+
+## Future Work
+- Add pooling (e.g. MaxPool, MeanPool).
+- Other model architectures...
 
 ## Acknowledgements
 
