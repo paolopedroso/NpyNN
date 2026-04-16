@@ -32,17 +32,18 @@ Intentionally overfitting the data.
 
 neurons = 256
 
-model = Model()
-model.add(Dense(X_train.shape[1], neurons))
-model.add(ReLU())
-model.add(Dense(neurons, neurons))
-model.add(ReLU())
-model.add(Dense(neurons, neurons))
-model.add(ReLU())
-model.add(Dense(neurons, neurons))
-model.add(ReLU())
-model.add(Dense(neurons, 3))
-model.add(Softmax())
+model = Sequential(
+    Dense(X_train.shape[1], neurons),
+    ReLU(),
+    Dense(neurons, neurons),
+    ReLU(),
+    Dense(neurons, neurons),
+    ReLU(),
+    Dense(neurons, neurons),
+    ReLU(),
+    Dense(neurons, 3),
+    Softmax()
+)
 
 model.set(loss=CategoricalCrossEntropy(),
           optimizer=Adam(learning_rate=0.01,

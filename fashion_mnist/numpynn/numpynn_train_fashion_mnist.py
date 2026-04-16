@@ -26,13 +26,14 @@ neurons = 128
 
 ############################ Initialize model
 
-model = Model()
-model.add(Dense(X.shape[1], neurons))
-model.add(ReLU())
-model.add(Dense(neurons, neurons))
-model.add(ReLU())
-model.add(Dense(neurons, 10))
-model.add(Softmax())
+model = Sequential(
+    Dense(X.shape[1], neurons),
+    ReLU(),
+    Dense(neurons, neurons),
+    ReLU(),
+    Dense(neurons, 10),
+    Softmax(),
+)
 
 model.set(loss=CategoricalCrossEntropy(),
           optimizer=Adam(learning_rate=0.001

@@ -1,8 +1,12 @@
 import os
 import copy
 import pickle
+import logging
 import numpy as np
-from numpynn.layer import Input_Layer
+from numpynn.layer import Input_Layer, MessagePassing
+
+
+from abc import abstractmethod
 
 class Model:
     """
@@ -18,19 +22,32 @@ class Model:
     """
 
     def __init__(self):
-        """
-        Initializes an empty model with no layers.
-        """
-        self.layers = []
-        self.softmax_classifier_output = None  # combined softmax+CCE
-    
-    def add(self, layer):
-        """
-        Adds a layer to the model.
+        pass
 
-        Args:
-            layer: Any layer, activation, or dropout object to append to the network.
+    @abstractmethod
+    def finalize(self):
         """
+        Finalizes the model by depending on specified model architecture.        
+        """
+        pass
+
+    @abstractmethod
+    def forward(self):
+        """
+        Performs a forward pass through all layers in the model.
+        """        
+        pass
+
+    @abstractmethod
+    def backward(self):
+        """
+        Performs a backward pass through all layers depending on model architecture.
+        """
+        pass
+
+    def add(self, layer):
+        """ Deprecated """
+        logging.warning(f"[{self.__class__.__name__}] Add method is deprecated.")
         self.layers.append(layer)
 
     def set(self, *, loss=None, optimizer=None, accuracy=None):
@@ -48,86 +65,6 @@ class Model:
             self.optimizer = optimizer
         if accuracy is not None:
             self.accuracy = accuracy
-        
-    def finalize(self):
-        """
-        Finalizes the model by creating a doubly linked list of layers for
-        forward and backward passes. Must be called before training.
-
-        Also detects if the last layer is Softmax paired with CategoricalCrossEntropy
-        and enables the faster combined backward pass automatically.
-        """
-        layer_count = len(self.layers)
-        self.trainable_layers = []
-        self.input_layer = Input_Layer()
-
-        for i in range(layer_count):
-            if i == 0:
-                self.layers[i].prev = self.input_layer
-                self.layers[i].next = self.layers[i+1]
-            elif i < layer_count - 1:
-                self.layers[i].prev = self.layers[i-1]
-                self.layers[i].next = self.layers[i+1]
-            elif i == layer_count - 1:
-                self.layers[i].prev = self.layers[i-1]
-                self.layers[i].next = self.loss
-                self.output_layer_activation = self.layers[i]
-        
-            if hasattr(self.layers[i], "weights"):
-                self.trainable_layers.append(self.layers[i])
-
-        if self.loss is not None:
-            self.loss.remember_trainable_layers(self.trainable_layers)
-
-        # If output activation is Softmax and loss is CCE,
-        # use combined activation/loss for faster backward step
-        from numpynn.activation import Softmax
-        from numpynn.loss import CategoricalCrossEntropy, SoftmaxCategoricalCrossEntropy
-        if isinstance(self.layers[-1], Softmax) and \
-           isinstance(self.loss, CategoricalCrossEntropy):
-            self.softmax_classifier_output = SoftmaxCategoricalCrossEntropy()
-
-    def forward(self, X: np.ndarray, training: bool):
-        """
-        Performs a forward pass through all layers in the model.
-
-        Args:
-            X (np.ndarray): Input data.
-            training (bool): Whether the model is in training mode.
-                             Affects layers like Dropout.
-
-        Returns:
-            np.ndarray: Output of the last layer.
-        """
-        self.input_layer.forward(X, training)
-
-        for layer in self.layers:
-            layer.forward(layer.prev.output, training)
-        
-        return layer.output
-    
-    def backward(self, output, y):
-        """
-        Performs a backward pass through all layers in reverse order.
-
-        If Softmax + CategoricalCrossEntropy are used, takes the faster
-        combined backward path. Otherwise falls back to standard backprop.
-
-        Args:
-            output (np.ndarray): Output of the forward pass.
-            y (np.ndarray): Ground truth labels.
-        """
-        # If softmax classifier, use combined backward for speed
-        if self.softmax_classifier_output is not None:
-            self.softmax_classifier_output.backward(output, y)
-            self.layers[-1].dinputs = self.softmax_classifier_output.dinputs
-            for layer in reversed(self.layers[:-1]):
-                layer.backward(layer.next.dinputs)
-            return
-
-        self.loss.backward(output, y)
-        for layer in reversed(self.layers):
-            layer.backward(layer.next.dinputs)
 
     def train(self, X: np.ndarray, y: np.ndarray, *, epochs=1,
               batch_size=None, print_every=1, validation_data=None):
@@ -371,3 +308,142 @@ class Model:
         """
         with open(path, 'rb') as f:
             return pickle.load(f)
+        
+class Sequential(Model):
+    """
+    ## Sequential
+
+    Model architecture finalizes model by creating a doubly linked list of layers for
+    forward and backward passes. Must be called before training.
+    """
+    def __init__(self, *layers):
+        """
+        Initializes an empty model with no layers.
+        """
+        self.layers = list(layers)
+        self.softmax_classifier_output = None
+
+    def finalize(self):
+        """
+        Finalizes the model by creating a doubly linked list of layers for
+        forward and backward passes. Must be called before training.
+
+        Also detects if the last layer is Softmax paired with CategoricalCrossEntropy
+        and enables the faster combined backward pass automatically.
+        """
+        layer_count = len(self.layers)
+        self.trainable_layers = []
+        self.input_layer = Input_Layer()
+
+        for i in range(layer_count):
+            if i == 0:
+                self.layers[i].prev = self.input_layer
+                self.layers[i].next = self.layers[i+1]
+            elif i < layer_count - 1:
+                self.layers[i].prev = self.layers[i-1]
+                self.layers[i].next = self.layers[i+1]
+            elif i == layer_count - 1:
+                self.layers[i].prev = self.layers[i-1]
+                self.layers[i].next = self.loss
+                self.output_layer_activation = self.layers[i]
+        
+            if hasattr(self.layers[i], "weights"):
+                self.trainable_layers.append(self.layers[i])
+
+        if self.loss is not None:
+            self.loss.remember_trainable_layers(self.trainable_layers)
+
+        # If output activation is Softmax and loss is CCE,
+        # use combined activation/loss for faster backward step
+        from numpynn.activation import Softmax
+        from numpynn.loss import CategoricalCrossEntropy, SoftmaxCategoricalCrossEntropy
+        if isinstance(self.layers[-1], Softmax) and \
+           isinstance(self.loss, CategoricalCrossEntropy):
+            self.softmax_classifier_output = SoftmaxCategoricalCrossEntropy()
+
+    def forward(self, X: np.ndarray, training: bool):
+        """
+        Performs a forward pass through all layers in the model.
+
+        Args:
+            X (np.ndarray): Input data.
+            training (bool): Whether the model is in training mode.
+                             Affects layers like Dropout.
+
+        Returns:
+            np.ndarray: Output of the last layer.
+        """
+        self.input_layer.forward(X, training)
+
+        for layer in self.layers:
+            layer.forward(layer.prev.output, training)
+        
+        return layer.output
+    
+    def backward(self, output, y):
+        """
+        Performs a backward pass through all layers in reverse order.
+
+        If Softmax + CategoricalCrossEntropy are used, takes the faster
+        combined backward path. Otherwise falls back to standard backprop.
+
+        Args:
+            output (np.ndarray): Output of the forward pass.
+            y (np.ndarray): Ground truth labels.
+        """
+        # If softmax classifier, use combined backward for speed
+        if self.softmax_classifier_output is not None:
+            self.softmax_classifier_output.backward(output, y)
+            self.layers[-1].dinputs = self.softmax_classifier_output.dinputs
+            for layer in reversed(self.layers[:-1]):
+                layer.backward(layer.next.dinputs)
+            return
+
+        self.loss.backward(output, y)
+        for layer in reversed(self.layers):
+            layer.backward(layer.next.dinputs)
+
+class GraphModel(Sequential):
+    """
+    ## GraphModel
+
+    Model architecture finalizes model by creating a doubly linked list of layers for
+    forward and backward passes. Must be called before training.
+    """
+    def set_graph(self, adj_matrix=None, edge_index=None):
+        """
+        Takes in either adj_matrix, adjanceny matrix of one-hot encoded values of shape (N, N),
+        or a sparse representation of adjanceny matrix `edge_index` of shape (2, E). Sets
+        graph by initializing per `self.trainable_layer` with attribute `edge_index` and
+        `edge_weights`.
+        
+        Args:
+            `adj_matrix` (np.ndarray): Adjacency matrix of one hot encoded values.
+            `edge_index` (np.ndarray): Sparse representation of adjacency matrix. Assumed that
+                `edge_index[0]` are the source nodes and `edge_index[1]` are the target nodes.
+        """
+        if adj_matrix is not None and edge_index is not None:
+            raise NotImplementedError("Cant pass both adj_matrix and edge_index to set_graph.")
+
+        if adj_matrix is not None:
+            A_tilde = adj_matrix + np.eye(adj_matrix.shape[0])
+            deg = np.sum(A_tilde, axis=1)
+
+            source, target = np.nonzero(A_tilde)
+            edge_index = np.array([source, target])
+        else:
+            N = edge_index.max() + 1
+            # creates self loops then concantate to current edge_list.
+            self_loops = np.array([np.arange(N), np.arange(N)])
+            edge_index = np.concatenate([edge_index, self_loops], axis=1)
+            # count num incoming edges using targets in edge_index.
+            deg = np.bincount(edge_index[1], minlength=N)
+            
+        # kipf & welling normalization.
+        d_inv_sqrt = 1.0 / np.sqrt(deg)
+        edge_weight = d_inv_sqrt[edge_index[0]] * d_inv_sqrt[edge_index[1]]
+
+        for layer in self.layers:
+            if isinstance(layer, MessagePassing):
+                layer.edge_index = edge_index
+                layer.edge_weight = edge_weight

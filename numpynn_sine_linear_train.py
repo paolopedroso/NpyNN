@@ -17,13 +17,14 @@ y_train, y_test = y[:split], y[split:]
 
 neurons = 128
 
-model = Model()
-model.add(Dense(X_train.shape[1], neurons))
-model.add(ReLU())
-model.add(Dense(neurons, neurons))
-model.add(ReLU())
-model.add(Dense(neurons, 1))
-model.add(Linear())
+model = Sequential(
+    Dense(X_train.shape[1], neurons),
+    ReLU(),
+    Dense(neurons, neurons),
+    ReLU(),
+    Dense(neurons, 1),
+    Linear()
+)
 
 model.set(loss=MeanSquareError(),
           optimizer=RMSprop(learning_rate=0.01,

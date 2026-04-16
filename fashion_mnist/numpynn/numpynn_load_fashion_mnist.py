@@ -23,7 +23,7 @@ y = y[keys]
 X = (X.reshape(X.shape[0], -1) - 127.5) / 127.5
 X_test = (X_test.reshape(X_test.shape[0], -1) - 127.5) / 127.5
 
-model = Model.load('cache/models/numpynn_fashion_mnist.model')
+model = Sequential.load('cache/models/numpynn_fashion_mnist.model')
 
 ############################ Evaluate the model
 

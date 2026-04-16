@@ -119,6 +119,55 @@ class ReLU(Activation):
         """
         return outputs
 
+class LeakyReLU(Activation):
+    """
+    Leaky Rectified Linear Unit (LeakyReLU) activation function.
+    Outputs the input directly if positive, otherwise outputs negative slope
+    multiplied by its inputs.
+    """    
+    def __init__(self, negative_slope=0.01):
+        """
+        Initalizes specified negative slop.
+
+        Args:
+            negative_slope (float, optional): Hyperparameter for input times negative slope.
+        """        
+        self.negative_slope = negative_slope
+    
+    def forward(self, inputs, training):
+        """
+        Applies the LeakyReLU function, clipping all negative values times 
+        specified negative slope.
+
+        Args:
+            inputs (np.ndarray): Input values from the previous layer.
+            training (bool): Whether the model is in training mode.
+        """        
+        self.inputs = inputs
+        self.output = np.where(inputs > 0, inputs, inputs * self.negative_slope)
+    
+    def backward(self, dvalues):
+        """
+        Computes gradients, multiplies gradient values by the negative slope
+        for all negative values.
+
+        Args:
+            dvalues (np.ndarray): Gradient values from the next layer.
+        """        
+        self.dinputs = dvalues.copy()
+        self.dinputs[self.inputs <= 0] *= self.negative_slope
+
+    def predictions(self, outputs: np.ndarray):
+        """
+        Returns outputs directly, as ReLU is used in regression or hidden layers.
+
+        Args:
+            outputs (np.ndarray): Output of the forward pass.
+
+        Returns:
+            np.ndarray: The raw outputs unchanged.
+        """
+        return outputs
 
 class Sigmoid(Activation):
     """
@@ -158,6 +207,44 @@ class Sigmoid(Activation):
         """
         return (outputs > 0.5) * 1
 
+class Tanh(Activation):
+    """
+    Hyperbolic tangent (Tanh) activation function. Squashes inputs to a range
+    of (-1, 1), commonly used in hidden layers as a zero-centered alternative
+    to sigmoid.
+    """
+
+    def forward(self, inputs: np.ndarray, training):
+        """
+        Applies the tanh function to each input value.
+
+        Args:
+            inputs (np.ndarray): Input values from the previous layer.
+            training (bool): Whether the model is in training mode.
+        """
+        self.inputs = inputs
+        self.output = np.tanh(inputs)
+
+    def backward(self, dvalues: np.ndarray):
+        """
+        Computes gradients using the tanh derivative: 1 - tanh(x)^2.
+
+        Args:
+            dvalues (np.ndarray): Gradient values from the next layer.
+        """
+        self.dinputs = dvalues * (1 - (self.output ** 2))
+
+    def predictions(self, outputs: np.ndarray):
+        """
+        Returns outputs directly, as Tanh is typically used in hidden layers.
+
+        Args:
+            outputs (np.ndarray): Output of the forward pass.
+
+        Returns:
+            np.ndarray: The raw outputs unchanged.
+        """
+        return outputs
 
 class Softmax(Activation):
     """

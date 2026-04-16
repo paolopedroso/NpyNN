@@ -1,6 +1,6 @@
 import numpy as np
+import logging
 from abc import abstractmethod
-
 
 class Layer:
     """
@@ -30,17 +30,10 @@ class Layer:
         """
         pass
 
-
-class Dense(Layer):
-    """
-    Fully connected (dense) layer. Every input is connected to every neuron.
-
-    Supports optional L1 and L2 regularization on both weights and biases.
-    """
-
+class TrainableLayer(Layer):
     def __init__(self, n_inputs: int, n_neurons: int,
                  weight_regularizer_l1=0, bias_regularizer_l1=0,
-                 weight_regularizer_l2=0, bias_regularizer_l2=0):
+                 weight_regularizer_l2=0, bias_regularizer_l2=0):        
         """
         Initializes weights and biases, and stores regularization strengths.
 
@@ -59,7 +52,40 @@ class Dense(Layer):
         self.weight_regularizer_l1 = weight_regularizer_l1
         self.weight_regularizer_l2 = weight_regularizer_l2
         self.bias_regularizer_l1 = bias_regularizer_l1
-        self.bias_regularizer_l2 = bias_regularizer_l2
+        self.bias_regularizer_l2 = bias_regularizer_l2    
+
+    def get_parameters(self) -> tuple:
+        """
+        Returns the layer's current weights and biases.
+
+        Returns:
+            tuple: (weights, biases) as numpy arrays.
+        """
+        return self.weights, self.biases
+
+    def set_parameters(self, weights, biases):
+        """
+        Overwrites the layer's weights and biases with the provided values.
+
+        Args:
+            weights (np.ndarray): New weights to assign.
+            biases (np.ndarray): New biases to assign.
+        """
+        self.weights = weights
+        self.biases = biases
+
+class Dense(TrainableLayer):
+    """
+    Fully connected (dense) layer. Every input is connected to every neuron.
+
+    Supports optional L1 and L2 regularization on both weights and biases.
+    """
+    def __init__(self, n_inputs, n_neurons
+            , weight_regularizer_l1=0, bias_regularizer_l1=0
+            , weight_regularizer_l2=0, bias_regularizer_l2=0):
+        super().__init__(n_inputs, n_neurons
+            , weight_regularizer_l1=weight_regularizer_l1, bias_regularizer_l1=bias_regularizer_l1
+            , weight_regularizer_l2=weight_regularizer_l2, bias_regularizer_l2=bias_regularizer_l2)
 
     def forward(self, inputs: np.ndarray, training) -> None:
         """
@@ -101,27 +127,6 @@ class Dense(Layer):
 
         self.dinputs = np.dot(dvalues, self.weights.T)
 
-    def get_parameters(self) -> tuple:
-        """
-        Returns the layer's current weights and biases.
-
-        Returns:
-            tuple: (weights, biases) as numpy arrays.
-        """
-        return self.weights, self.biases
-
-    def set_parameters(self, weights, biases):
-        """
-        Overwrites the layer's weights and biases with the provided values.
-
-        Args:
-            weights (np.ndarray): New weights to assign.
-            biases (np.ndarray): New biases to assign.
-        """
-        self.weights = weights
-        self.biases = biases
-
-
 class Dropout(Layer):
     """
     Dropout layer for regularization. Randomly zeros out a fraction of neurons
@@ -138,7 +143,7 @@ class Dropout(Layer):
         """
         self.rate = 1 - rate
 
-    def forward(self, inputs, training):
+    def forward(self, inputs: np.ndarray, training: bool):
         """
         Applies the dropout mask during training. During inference, passes
         inputs through unchanged.
@@ -156,7 +161,7 @@ class Dropout(Layer):
                            size=inputs.shape) / self.rate
         self.output = self.inputs * self.binary_mask
 
-    def backward(self, dvalues):
+    def backward(self, dvalues: np.ndarray):
         """
         Passes gradients through only the neurons that were kept during the forward pass.
 
@@ -173,7 +178,7 @@ class Input_Layer:
     prev.output interface.
     """
 
-    def forward(self, inputs, training):
+    def forward(self, inputs: np.ndarray, training: bool):
         """
         Stores inputs as output so the next layer can access them.
 
@@ -190,5 +195,155 @@ class Input_Layer:
         Raises:
             NotImplementedError: 
         """
-        raise NotImplementedError("")
-    
+        raise NotImplementedError("Cannot backpropagate past input layer.")
+
+class MessagePassing:
+    """
+    Message Pass for Graph Models
+
+    Args:
+        aggr (str): Specified aggregation function. 
+            - aggr="sum": 
+    """
+    def __init__(self, aggr: str):
+        self.aggr = aggr
+
+    def message(self, x_j: np.ndarray, *args) -> np.ndarray:
+        """
+        Message method for `MessagePassing`.
+
+        Args:
+            x_j (np.ndarray): Message passed through.
+        """
+        return x_j
+
+    def aggregate(self, message: np.ndarray
+            , target_nodes: np.ndarray, num_nodes: int) -> np.ndarray:
+        """
+        Aggregate method for `MessagePassing`.
+
+        Args:
+            message (np.ndarray): 
+            target_nodes (np.ndarray): List of edges from edge index matrix. 
+            num_nodes (int): Number of nodes, comes from `x.shape[0]`. Where
+                `x.shape` has `(N, F)` where `N` is the number of nodes and
+                `F` is the number of features.
+        
+        Returns:
+            Return the aggregate output specified from initializing `aggr`
+            in `MessagePassing` object.
+        """
+        output = np.zeros((num_nodes, message.shape[1]))
+        if self.aggr == "sum":
+            np.add.at(output, target_nodes, message)
+
+        # TODO
+        elif self.aggr == "mean":
+            pass
+
+        elif self.aggr == "max":
+            pass
+        else:
+            raise NotImplementedError("")
+        return output
+
+    def propagate(self, x: np.ndarray) -> np.ndarray:
+        """
+        Propagate by grabbing source nodes `x_j` indices from `edge_index[0]`
+        Getting message by passing in `message(x_j)`. And outputting aggregate
+        value.
+
+        Args:
+            x (np.ndarray): node features, shape `(N, F)` where `N` is the number
+                nodes and `F` is the number of of features.
+            edge_index (np.ndarray): Sparse representation of edge indexes of
+                nodes, shape `(2, E)`, where `E` is the number of edges.
+                `edge_index[0]` row represents the source index edges, `edge_index[1]`
+                row represents the target edges to be passed in for `aggregate` method.
+
+        Returns:
+            Return the aggregate output specified from initializing `aggr`
+            in `MessagePassing` object.
+        """
+        x_j = x[self.edge_index[0]] # source nodes
+        msg = self.message(x_j)
+        return self.aggregate(msg, self.edge_index[1], x.shape[0])
+
+    def propagate_backward(self, dZ):
+        dZ_j = dZ[self.edge_index[1]]
+        dmsg = self.message(dZ_j)
+        return self.aggregate(dmsg, self.edge_index[0], dZ.shape[0])
+        
+class GCNLayer(MessagePassing, TrainableLayer):
+    """
+    Graph convolutional network layer. Every input is connected to every neuron.
+
+    Supports optional L1 and L2 regularization on both weights and biases.
+    """
+
+    def __init__(self, n_inputs, n_neurons
+            , weight_regularizer_l1=0, bias_regularizer_l1=0
+            , weight_regularizer_l2=0, bias_regularizer_l2=0):
+        MessagePassing.__init__(self, aggr="sum")
+        TrainableLayer.__init__(self, n_inputs, n_neurons
+            , weight_regularizer_l1, bias_regularizer_l1
+            , weight_regularizer_l2, bias_regularizer_l2)
+
+    def message(self, x_j):
+        """
+        Message method.
+
+        Args:
+            x_j (np.ndarray): Message to be preprocessed and passed.
+
+        Note:
+            `edge_weight` is set by `set_graph`.
+        """
+        if not hasattr(self, "edge_weight"):
+            raise NotImplementedError(logging.error("Ensure set_graph is set."))
+        
+        return x_j * self.edge_weight.reshape(-1, 1)
+
+    def forward(self, inputs: np.ndarray, training) -> None:
+        """
+        Computes the layer output as a dot product of inputs, adjacency matrix,
+        weights, plus biases.
+
+        Args:
+            inputs (np.ndarray): Input data from the previous layer.
+            training (bool): Whether the model is in training mode.
+        """
+        self.inputs = inputs
+        self.Z_val = self.propagate(inputs)
+        self.output = np.dot(self.Z_val, self.weights) + self.biases
+
+    def backward(self, dvalues: np.ndarray) -> None:
+        """
+        Computes gradients for weights, biases, and inputs. Applies regularization
+        gradient contributions to dweights and dbiases if regularization strengths are set.
+
+        Args:
+            dvalues (np.ndarray): Gradient values from the next layer.
+        """
+        self.dweights = np.dot(self.Z_val.T, dvalues)
+
+        self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
+
+        if self.weight_regularizer_l1 > 0:
+            dL1 = np.ones_like(self.weights)
+            dL1[self.weights < 0] = -1
+            self.dweights += self.weight_regularizer_l1 * dL1
+
+        if self.weight_regularizer_l2 > 0:
+            self.dweights += 2 * self.weight_regularizer_l2 * self.weights
+
+        if self.bias_regularizer_l1 > 0:
+            dL1 = np.ones_like(self.biases)
+            dL1[self.biases < 0] = -1
+            self.dbiases += self.bias_regularizer_l1 * dL1
+
+        if self.bias_regularizer_l2 > 0:
+            self.dbiases += 2 * self.bias_regularizer_l2 * self.biases
+
+        dZ = np.dot(dvalues, self.weights.T)
+        self.dinputs = self.propagate_backward(dZ)

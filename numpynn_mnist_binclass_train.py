@@ -26,11 +26,12 @@ X_test = (X_test.reshape(X_test.shape[0], -1) - 127.5) / 127.5
 
 neurons = 16
 
-model = Model()
-model.add(Dense(X.shape[1], neurons))
-model.add(ReLU())
-model.add(Dense(neurons, 1)) # single output neuron
-model.add(Sigmoid()) # sigmoid for binary output
+model = Sequential(
+    Dense(X.shape[1], neurons),
+    ReLU(),
+    Dense(neurons, 1),
+    Sigmoid()
+)
 
 model.set(loss=BinaryCrossEntropy(),
           optimizer=AdaGrad(learning_rate=0.01,
