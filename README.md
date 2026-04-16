@@ -21,11 +21,12 @@ pip install torchvision
 ```python
 from numpynn import *
 
-model = Model()
-model.add(Dense(784, 128))
-model.add(ReLU())
-model.add(Dense(128, 10))
-model.add(Softmax())
+model = Model(
+  Dense(784, 128),
+  ReLU(),
+  Dense(128, 10),
+  Softmax()
+)
 
 model.set(
     loss=CategoricalCrossEntropy(),
