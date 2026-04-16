@@ -161,23 +161,21 @@ validation, acc: 0.856, loss: 1.605
 Stochastic block model with 7 communities and 10K nodes.
 
 Run:
-```python
+```bash
 python3 numpynn_gcn_synth.py
 ```
 
 ## Results
 
-```
-Training time: 4.8s
-
+```bash
 Results:
-  Train accuracy: 0.990
-  Test accuracy:  0.986
+  Train accuracy: 0.829
+  Test accuracy:  0.824
 ```
 
-### Training Loss, Training Accuracy, t-SNE, and 2-Hop Subgraph from Node 7270
+### Training Loss, Training Accuracy, t-SNE, and 2-Hop Subgraph from Node 15795
 ---
-- **Node 7270** is random from set seed. Just to show the local neighborhood structure the GCN actually aggregates over during message passing.
+- **Node 15795** is random from set seed. Just to show the local neighborhood structure the GCN actually aggregates over during message passing.
 
 ![GCN_Results](plots/gcn_results.png)
 
