@@ -2,11 +2,12 @@ import os
 import copy
 import pickle
 import logging
+
 import numpy as np
+
 from numpynn.layer import Input_Layer, MessagePassing
-
-
 from abc import abstractmethod
+from tqdm.auto import tqdm
 
 class Model:
     """
@@ -81,49 +82,30 @@ class Model:
             validation_data (tuple, optional): Tuple of (X_val, y_val) for
                                                validation after each epoch. Default is None.
         """
-        self.history = {
-            'train_loss': [],
-            'train_acc': [],
-            'val_loss': [],
-            'val_acc': [],
-            'lr': [],
-        }
-        self.accuracy
+        self.history = {'train_loss': [], 'train_acc': [],
+                        'val_loss': [], 'val_acc': [], 'lr': []}
         self.accuracy.init(y)
-        train_steps = 1
 
-        if batch_size is not None:
-            train_steps = len(X) // batch_size
-            if train_steps * batch_size < len(X):
-                train_steps += 1
+        train_steps = 1 if batch_size is None else (len(X) + batch_size - 1) // batch_size
+        full_batch = train_steps == 1
 
-        for epoch in range(1, epochs+1):
-
-            print(f'epoch: {epoch}')
-
+        epoch_bar = tqdm(range(1, epochs + 1), desc='train', unit='ep')
+        for epoch in epoch_bar:
             self.loss.new_pass()
             self.accuracy.new_pass()
 
-            for step in range(train_steps):
-                if batch_size is None:
-                    batch_X = X
-                    batch_y = y
-                else:
-                    batch_X = X[step*batch_size:(step+1)*batch_size]
-                    batch_y = y[step*batch_size:(step+1)*batch_size]
+            step_iter = range(train_steps)
+            if not full_batch:
+                step_iter = tqdm(step_iter, desc=f'ep {epoch}', leave=False, unit='b')
+
+            for step in step_iter:
+                batch_X = X if full_batch else X[step*batch_size:(step+1)*batch_size]
+                batch_y = y if full_batch else y[step*batch_size:(step+1)*batch_size]
 
                 output = self.forward(batch_X, training=True)
-
-                # Calculate loss
-                data_loss, regularization_loss = \
-                    self.loss.calculate(output, batch_y,
-                                        include_regularization=True)
-                loss = data_loss + regularization_loss
-
-                # Get predictions and calculate an accuracy
+                data_loss, reg_loss = self.loss.calculate(output, batch_y, include_regularization=True)
                 predictions = self.output_layer_activation.predictions(output)
                 accuracy = self.accuracy.calculate(predictions.flatten(), batch_y)
-
                 self.backward(output, batch_y)
 
                 self.optimizer.pre_update_params()
@@ -131,37 +113,27 @@ class Model:
                     self.optimizer.update_params(layer)
                 self.optimizer.post_update_params()
 
-                if not step % print_every or step == train_steps - 1:
-                    print(f'step: {step}, ' +
-                          f'acc: {accuracy:.3f}, ' +
-                          f'loss: {loss:.3f} (' +
-                          f'data_loss: {data_loss:.3f}, ' +
-                          f'reg_loss: {regularization_loss:.3f}), ' +
-                          f'lr: {self.optimizer.current_learning_rate}')
-                    
-            # Get and print epoch loss and accuracy
-            epoch_data_loss, epoch_regularization_loss = \
-                self.loss.calculate_accumulated(
-                    include_regularization=True)
-            epoch_loss = epoch_data_loss + epoch_regularization_loss
-            epoch_accuracy = self.accuracy.calculate_accumulated()
+                if not full_batch:
+                    step_iter.set_postfix(loss=f'{data_loss+reg_loss:.3f}', acc=f'{accuracy:.3f}')
 
-            print(f'training, ' +
-                  f'acc: {epoch_accuracy:.3f}, ' +
-                  f'loss: {epoch_loss:.3f} (' +
-                  f'data_loss: {epoch_data_loss:.3f}, ' +
-                  f'reg_loss: {epoch_regularization_loss:.3f}), ' +
-                  f'lr: {self.optimizer.current_learning_rate}')
-
-            self.history['train_loss'].append(float(epoch_loss))
-            self.history['train_acc'].append(float(epoch_accuracy))
+            ep_data, ep_reg = self.loss.calculate_accumulated(include_regularization=True)
+            ep_loss = ep_data + ep_reg
+            ep_acc = self.accuracy.calculate_accumulated()
+            self.history['train_loss'].append(float(ep_loss))
+            self.history['train_acc'].append(float(ep_acc))
             self.history['lr'].append(float(self.optimizer.current_learning_rate))
 
+            post = {'loss': f'{ep_loss:.3f}', 'acc': f'{ep_acc:.3f}',
+                    'lr': f'{self.optimizer.current_learning_rate:.1e}'}
+
             if validation_data is not None:
-                self.evaluate(*validation_data,
-                              batch_size=batch_size)
+                self.evaluate(*validation_data, batch_size=batch_size)  # make this quiet
                 self.history['val_loss'].append(float(self.validation_loss))
                 self.history['val_acc'].append(float(self.validation_accuracy))
+                post['vl'] = f'{self.validation_loss:.3f}'
+                post['va'] = f'{self.validation_accuracy:.3f}'
+
+            epoch_bar.set_postfix(**post)
 
     def evaluate(self, X_val, y_val, *, batch_size=None):
         """
@@ -289,12 +261,16 @@ class Model:
         model.input_layer.__dict__.pop('output', None)
         model.loss.__dict__.pop('dinputs', None)
         for layer in model.layers:
+            # forward/backward cache
             for prop in ['inputs', 'output', 'dinputs', 'dweights', 'dbiases']:
+                layer.__dict__.pop(prop, None)
+            # graph-specific state (only present on MessagePassing layers)
+            for prop in ['edge_index', 'edge_weight', 'Z_val']:
                 layer.__dict__.pop(prop, None)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'wb') as f:
             pickle.dump(model, f)
-
+        
     @staticmethod
     def load(path):
         """
