@@ -158,7 +158,7 @@ validation, acc: 0.856, loss: 1.605
 </p>
 
 ## Synthetic Dataset Example (with `GCNLayer`)
-Stochastic block model with 7 communities and 10K nodes.
+Stochastic block model with 7 communities and 80K nodes, 6.8M edges.
 
 Run:
 ```bash
@@ -177,7 +177,7 @@ Results:
 ---
 - **Node 15795** is random from set seed. Just to show the local neighborhood structure the GCN actually aggregates over during message passing.
 
-![GCN_Results](plots/gcn_results.png)
+![GCN_Results](plots/gcn_synth_80k_results.png)
 
 ## Future Work
 - Add pooling (e.g. MaxPool, MeanPool).
